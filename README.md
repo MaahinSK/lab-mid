@@ -118,35 +118,6 @@ The app implements a robust offline-first architecture:
    - Visual badge shows count of pending syncs
 
 
-5. ARCHITECTURE USED
---------------------------------------------------------------------------------
-The application follows a clean, maintainable architecture:
-
-📁 Project Structure:
-lib/
-├── main.dart                 # App entry point, MultiProvider setup
-├── models/                   # Data classes
-│   ├── landmark.dart         # Landmark model with JSON parsing
-│   ├── visit.dart            # Visit history model
-│   └── pending_visit.dart    # Offline queue model
-├── services/                 # Business logic & external interactions
-│   ├── api_service.dart      # Dio HTTP client, all API calls
-│   ├── database_service.dart # SQLite operations
-│   └── location_service.dart # GPS and distance calculations
-├── providers/                # State management
-│   └── landmark_provider.dart# ChangeNotifier for app state
-├── screens/                  # UI screens
-│   ├── home_screen.dart      # Bottom navigation container
-│   ├── map_screen.dart       # OpenStreetMap with markers
-│   ├── landmarks_screen.dart # List view with filter/sort
-│   ├── activity_screen.dart  # Visit history
-│   └── add_landmark_screen.dart # Create/view landmarks
-├── widgets/                  # Reusable UI components
-│   ├── landmark_card.dart    # List item for landmarks
-│   └── visit_history_card.dart # List item for visits
-└── utils/
-    └── constants.dart        # App constants and configuration
-
 
 6. CHALLENGES FACED
 --------------------------------------------------------------------------------
