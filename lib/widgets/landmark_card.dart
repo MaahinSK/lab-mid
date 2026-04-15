@@ -86,7 +86,10 @@ class LandmarkCard extends StatelessWidget {
               children: [
                 IconButton(
                   icon: const Icon(Icons.directions_walk),
-                  onPressed: onVisit,
+                  onPressed: () {
+                    print('=== VISIT BUTTON PRESSED ===');
+                    onVisit();
+                  },
                   tooltip: 'Visit',
                 ),
                 const SizedBox(height: 4),

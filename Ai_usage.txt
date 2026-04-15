@@ -1,0 +1,43 @@
+
+**AI Usage Justification**
+
+**Course:** CSE 489 - Mobile Application Development
+
+**Project:** Smart Geo-Tagged Landmarks
+
+---
+
+**AI Tool Used:** Claude (Anthropic) via DeepSeek platform
+
+**Areas of AI Assistance:**
+
+1. **Initial Project Structure**
+   - AI assisted in generating the Flutter project directory structure based on the exam requirements.
+   - Provided boilerplate code for models, services, and providers following Flutter best practices.
+   - Justification: Saved time in setting up the foundational architecture, allowing focus on implementing exam-specific features.
+
+2. **Brainstorming & Problem Solving**
+   - Used AI to discuss implementation approaches for offline support and visit queuing.
+   - AI helped identify edge cases like NaN/Infinity values in API responses and suggested robust parsing solutions.
+   - Justification: Accelerated the debugging process and helped understand complex Flutter concepts like state management and local database caching.
+
+3. **Debugging Assistance**
+   - AI helped diagnose compilation errors, null safety issues, and widget lifecycle problems.
+   - Assisted in fixing the SnackBar display issue caused by deactivated widget contexts after async operations.
+   - Justification: Reduced time spent on trial-and-error debugging, enabling completion within exam timeframe.
+
+4. **API Integration Guidance**
+   - AI provided guidance on proper multipart form-data handling for image uploads.
+   - Helped structure Dio HTTP client configuration and error handling.
+
+**Limitations & Personal Contribution:**
+- All code was manually reviewed, tested, and modified to fit the specific exam API and requirements.
+- Final implementation decisions were made independently.
+- Understanding of the Flutter framework, provider pattern, and offline-first architecture was developed through hands-on coding and testing.
+
+**Conclusion:**
+AI served as a productivity tool similar to documentation, Stack Overflow, or pair programming. It accelerated development but did not replace fundamental understanding of mobile application development concepts.
+
+---
+
+Save this as `Ai_usage.txt` in your project root folder.

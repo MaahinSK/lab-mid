@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/landmark.dart';
 import '../models/visit.dart';
 import '../models/pending_visit.dart';
@@ -16,8 +17,8 @@ class LandmarkProvider extends ChangeNotifier {
   List<Visit> _visits = [];
   bool _isLoading = false;
   String? _error;
-  double minScore = 0.0;  // Made public
-  bool sortByScoreAscending = true;  // Made public
+  double minScore = 0.0;
+  bool sortByScoreAscending = true;
   bool _isOnline = true;
 
   List<Landmark> get landmarks => _filteredLandmarks;
@@ -27,18 +28,14 @@ class LandmarkProvider extends ChangeNotifier {
   bool get isOnline => _isOnline;
 
   List<Landmark> get _filteredLandmarks {
-    // Don't filter out negative scores - show all landmarks
     var filtered = _landmarks.where((l) {
-      // Only filter out deleted landmarks
       return !l.isDeleted;
     }).toList();
 
-    // Apply score filter only if minScore > 0
     if (minScore > 0) {
       filtered = filtered.where((l) => l.score >= minScore).toList();
     }
 
-    // Sort by score
     if (sortByScoreAscending) {
       filtered.sort((a, b) => a.score.compareTo(b.score));
     } else {
@@ -56,12 +53,15 @@ class LandmarkProvider extends ChangeNotifier {
 
   void _checkConnectivity() async {
     final connectivity = Connectivity();
-    connectivity.onConnectivityChanged.listen((result) {
+
+    connectivity.onConnectivityChanged.listen((result) async {
+      final wasOffline = !_isOnline;
       _isOnline = result != ConnectivityResult.none;
-      if (_isOnline) {
-        syncPendingVisits();
-        fetchLandmarks();
+
+      if (wasOffline && _isOnline) {
+        await syncPendingVisits();
       }
+
       notifyListeners();
     });
 
@@ -104,101 +104,118 @@ class LandmarkProvider extends ChangeNotifier {
   }
 
   Future<void> visitLandmark(int landmarkId) async {
-    final position = await _locationService.getCurrentLocation();
-    if (position == null) {
-      _error = 'Unable to get current location';
+    print('--- visitLandmark called for ID: $landmarkId ---');
+
+    final landmarkIndex = _landmarks.indexWhere((l) => l.id == landmarkId);
+    if (landmarkIndex == -1) {
+      _error = 'Landmark not found';
+      print('ERROR: $_error');
       notifyListeners();
       return;
     }
 
-    final landmark = _landmarks.firstWhere((l) => l.id == landmarkId);
-    final distance = _locationService.calculateDistance(
-      position.latitude,
-      position.longitude,
-      landmark.lat,
-      landmark.lon,
+    final landmark = _landmarks[landmarkIndex];
+    print('Found landmark: ${landmark.title}');
+
+    Position? position;
+    try {
+      position = await _locationService.getCurrentLocation();
+      print('Got location: ${position?.latitude}, ${position?.longitude}');
+    } catch (e) {
+      print('Location error: $e');
+    }
+
+    double userLat = position?.latitude ?? 0.0;
+    double userLon = position?.longitude ?? 0.0;
+
+    double distance = 0.0;
+    if (position != null) {
+      distance = _locationService.calculateDistance(
+        userLat, userLon, landmark.lat, landmark.lon,
+      );
+      print('Calculated distance: $distance');
+    }
+
+    final visit = Visit(
+      landmarkId: landmarkId,
+      landmarkName: landmark.title,
+      visitTime: DateTime.now(),
+      distance: distance,
+      userLat: userLat,
+      userLon: userLon,
     );
+    await _dbService.saveVisit(visit);
+    _visits.insert(0, visit);
+    notifyListeners();
+    print('Visit saved locally');
 
     if (!_isOnline) {
-      // Queue for later sync
       final pendingVisit = PendingVisit(
         landmarkId: landmarkId,
-        userLat: position.latitude,
-        userLon: position.longitude,
+        userLat: userLat,
+        userLon: userLon,
         timestamp: DateTime.now(),
       );
       await _dbService.savePendingVisit(pendingVisit);
 
-      // Save visit locally
-      final visit = Visit(
-        landmarkId: landmarkId,
-        landmarkName: landmark.title,
-        visitTime: DateTime.now(),
-        distance: distance,
-        userLat: position.latitude,
-        userLon: position.longitude,
-      );
-      await _dbService.saveVisit(visit);
-      _visits.insert(0, visit);
-
-      _error = 'Visit queued for sync (offline)';
+      _error = '📴 Visit saved offline. Will sync when online.';
+      print('OFFLINE: $_error');
       notifyListeners();
       return;
     }
 
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
+    print('Online - sending to server...');
 
     try {
       final result = await _apiService.visitLandmark(
         landmarkId: landmarkId,
-        userLat: position.latitude,
-        userLon: position.longitude,
+        userLat: userLat,
+        userLon: userLon,
       );
 
+      print('API response: $result');
+
       if (result['success']) {
-        // Parse the response data
-        final data = result['data'];
-        String message = 'Visit successful!';
-
-        // Try to extract distance from response if available
-        if (data != null && data is Map) {
-          if (data.containsKey('distance')) {
-            message = 'Visit successful! Distance: ${data['distance'].toStringAsFixed(0)}m';
-          } else if (data.containsKey('message')) {
-            message = data['message'];
-          }
-        }
-
-        // Save visit locally
-        final visit = Visit(
-          landmarkId: landmarkId,
-          landmarkName: landmark.title,
-          visitTime: DateTime.now(),
-          distance: distance,
-          userLat: position.latitude,
-          userLon: position.longitude,
-        );
-        await _dbService.saveVisit(visit);
-        _visits.insert(0, visit);
-
-        // Refresh landmarks to get updated score
+        _error = '✅ Visit successful! Distance: ${distance.toStringAsFixed(0)}m';
+        print('SUCCESS: $_error');
+        notifyListeners();
         await fetchLandmarks();
-        _error = message; // Use error field to show success message
       } else {
-        _error = result['message'] ?? 'Failed to visit landmark';
+        final pendingVisit = PendingVisit(
+          landmarkId: landmarkId,
+          userLat: userLat,
+          userLon: userLon,
+          timestamp: DateTime.now(),
+        );
+        await _dbService.savePendingVisit(pendingVisit);
+        _error = '⚠️ Visit queued for later sync.';
+        print('SERVER ERROR: $_error');
+        notifyListeners();
       }
     } catch (e) {
-      _error = 'Error: ${e.toString()}';
-    } finally {
-      _isLoading = false;
+      final pendingVisit = PendingVisit(
+        landmarkId: landmarkId,
+        userLat: userLat,
+        userLon: userLon,
+        timestamp: DateTime.now(),
+      );
+      await _dbService.savePendingVisit(pendingVisit);
+      _error = '📴 Network error. Visit queued.';
+      print('EXCEPTION: $e');
       notifyListeners();
     }
+
+    print('--- visitLandmark finished ---');
   }
 
   Future<void> syncPendingVisits() async {
     final pendingVisits = await _dbService.getPendingVisits();
+
+    if (pendingVisits.isEmpty) return;
+
+    print('Syncing ${pendingVisits.length} pending visits...');
+
+    int successCount = 0;
 
     for (var pending in pendingVisits) {
       try {
@@ -210,13 +227,23 @@ class LandmarkProvider extends ChangeNotifier {
 
         if (result['success']) {
           await _dbService.deletePendingVisit(pending.id);
+          successCount++;
         }
       } catch (e) {
-        // Keep in queue if failed
+        print('Failed to sync visit ${pending.id}: $e');
       }
     }
 
-    await fetchLandmarks();
+    if (successCount > 0) {
+      _error = '✅ Synced $successCount offline visits';
+      await fetchLandmarks();
+      notifyListeners();
+    }
+  }
+
+  Future<int> getPendingVisitsCount() async {
+    final pending = await _dbService.getPendingVisits();
+    return pending.length;
   }
 
   void setMinScore(double score) {

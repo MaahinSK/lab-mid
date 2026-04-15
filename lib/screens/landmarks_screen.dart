@@ -6,12 +6,95 @@ import '../widgets/landmark_card.dart';
 class LandmarksScreen extends StatelessWidget {
   const LandmarksScreen({super.key});
 
+  void _handleVisit(BuildContext context, LandmarkProvider provider, int landmarkId) async {
+    print('=== _handleVisit STARTED for ID: $landmarkId ===');
+
+    await provider.visitLandmark(landmarkId);
+
+    print('=== _handleVisit COMPLETED ===');
+    print('Provider error: ${provider.error}');
+
+    // Show result
+    String message = provider.error ?? 'Visit completed';
+    bool isSuccess = !message.contains('error') && !message.contains('failed');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isSuccess ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 4),
+      ),
+    );
+
+    provider.clearError();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Landmarks'),
         actions: [
+          Consumer<LandmarkProvider>(
+            builder: (context, provider, child) {
+              return FutureBuilder<int>(
+                future: provider.getPendingVisitsCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  if (count == 0) return const SizedBox.shrink();
+
+                  return Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.sync),
+                        onPressed: () async {
+                          if (provider.isOnline) {
+                            await provider.syncPendingVisits();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(provider.error ?? 'Sync complete'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('No internet connection'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        },
+                        tooltip: 'Sync pending visits ($count)',
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '$count',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: () => _showFilterDialog(context),
@@ -50,7 +133,6 @@ class LandmarksScreen extends StatelessWidget {
 
           return Column(
             children: [
-              // Filter and sort bar
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -96,28 +178,35 @@ class LandmarksScreen extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Landmarks list
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   itemCount: provider.landmarks.length,
-                  itemBuilder: (context, index) {
+                  itemBuilder: (itemContext, index) {
                     final landmark = provider.landmarks[index];
                     return LandmarkCard(
                       landmark: landmark,
-                      onVisit: () async {
-                        await provider.visitLandmark(landmark.id);
-                        if (context.mounted) {
-                          _showVisitResult(context, provider);
-                        }
+                      onVisit: () {
+                        print('=== LANDMARK CARD CALLBACK EXECUTED ===');
+                        print('Landmark ID: ${landmark.id}');
+                        print('Landmark Title: ${landmark.title}');
+
+                        // Directly show a SnackBar to test
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Visiting ${landmark.title}...'),
+                            backgroundColor: Colors.blue,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+
+                        // Then call the async function
+                        _handleVisit(context, provider, landmark.id);
                       },
                     );
                   },
                 ),
               ),
-
-              // Offline indicator
               if (!provider.isOnline)
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -139,29 +228,6 @@ class LandmarksScreen extends StatelessWidget {
         },
       ),
     );
-  }
-
-  void _showVisitResult(BuildContext context, LandmarkProvider provider) {
-    if (provider.error != null) {
-      final isSuccess = provider.error!.contains('successful') ||
-          provider.error!.contains('queued');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(provider.error!),
-          backgroundColor: isSuccess ? Colors.green : Colors.red,
-          duration: const Duration(seconds: 3),
-          action: SnackBarAction(
-            label: 'OK',
-            textColor: Colors.white,
-            onPressed: () {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            },
-          ),
-        ),
-      );
-      provider.clearError();
-    }
   }
 
   void _showFilterDialog(BuildContext context) {
@@ -199,11 +265,11 @@ class LandmarksScreen extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 8),
-              Row(
+              const Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('0', style: TextStyle(color: Colors.grey)),
-                  const Text('100', style: TextStyle(color: Colors.grey)),
+                  Text('0', style: TextStyle(color: Colors.grey)),
+                  Text('100', style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ],
@@ -213,19 +279,19 @@ class LandmarksScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
-              onPressed: () {
-                provider.setMinScore(minScore);
-                Navigator.pop(context);
-              },
-              child: const Text('Apply'),
-            ),
             TextButton(
               onPressed: () {
                 provider.setMinScore(0);
                 Navigator.pop(context);
               },
               child: const Text('Reset'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                provider.setMinScore(minScore);
+                Navigator.pop(context);
+              },
+              child: const Text('Apply'),
             ),
           ],
         ),

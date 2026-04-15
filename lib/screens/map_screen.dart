@@ -50,7 +50,6 @@ class _MapScreenState extends State<MapScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Fit all markers on first load
           if (!_hasAdjustedView && provider.landmarks.isNotEmpty) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               _fitAllMarkers(provider.landmarks);
@@ -105,8 +104,6 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
 
-              // In the Stack, replace the error display with this:
-
               if (provider.error != null)
                 Positioned(
                   bottom: 16,
@@ -115,9 +112,9 @@ class _MapScreenState extends State<MapScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      // Show green for success messages, red for errors
-                      color: provider.error!.contains('successful') ||
-                          provider.error!.contains('queued')
+                      color: provider.error!.contains('✅') ||
+                          provider.error!.contains('successful') ||
+                          provider.error!.contains('offline')
                           ? Colors.green
                           : Colors.red,
                       borderRadius: BorderRadius.circular(8),
@@ -125,8 +122,8 @@ class _MapScreenState extends State<MapScreen> {
                     child: Row(
                       children: [
                         Icon(
-                          provider.error!.contains('successful') ||
-                              provider.error!.contains('queued')
+                          provider.error!.contains('✅') ||
+                              provider.error!.contains('successful')
                               ? Icons.check_circle
                               : Icons.error_outline,
                           color: Colors.white,
@@ -148,7 +145,6 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
 
-              // Marker count indicator
               Positioned(
                 top: 16,
                 right: 16,
@@ -165,22 +161,9 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ],
                   ),
-                  child: Consumer<LandmarkProvider>(
-                    builder: (context, provider, child) {
-                      final bangladeshCount = provider.landmarks.where((l) {
-                        const double minLat = 20.5;
-                        const double maxLat = 26.7;
-                        const double minLon = 88.0;
-                        const double maxLon = 92.7;
-                        return l.lat >= minLat && l.lat <= maxLat &&
-                            l.lon >= minLon && l.lon <= maxLon;
-                      }).length;
-
-                      return Text(
-                        '$bangladeshCount landmarks in BD',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      );
-                    },
+                  child: Text(
+                    '${provider.landmarks.length} landmarks',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -192,17 +175,13 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   List<Marker> _buildMarkers(List<Landmark> landmarks) {
-    // Filter only valid coordinates (no NaN/Infinity)
     final validLandmarks = landmarks.where((l) {
       if (l.lat.isNaN || l.lat.isInfinite || l.lon.isNaN || l.lon.isInfinite) {
         return false;
       }
       if (l.lat == 0.0 && l.lon == 0.0) return false;
-      if (l.lat == null || l.lon == null) return false;
       return true;
     }).toList();
-
-    print('Showing ${validLandmarks.length} landmarks out of ${landmarks.length} total');
 
     return validLandmarks.map((landmark) {
       return Marker(
@@ -229,7 +208,6 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _fitAllMarkers(List<Landmark> landmarks) {
-    // Filter valid landmarks
     final validLandmarks = landmarks.where((l) {
       if (l.lat.isNaN || l.lat.isInfinite || l.lon.isNaN || l.lon.isInfinite) {
         return false;
@@ -243,7 +221,6 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    // Find bounds safely
     double minLat = validLandmarks.first.lat;
     double maxLat = validLandmarks.first.lat;
     double minLon = validLandmarks.first.lon;
@@ -256,13 +233,11 @@ class _MapScreenState extends State<MapScreen> {
       if (landmark.lon > maxLon) maxLon = landmark.lon;
     }
 
-    // If all points are the same, just center on them
     if (minLat == maxLat && minLon == maxLon) {
       _mapController.move(LatLng(minLat, minLon), 12.0);
       return;
     }
 
-    // Add padding
     double latPadding = (maxLat - minLat) * 0.1;
     double lonPadding = (maxLon - minLon) * 0.1;
 
@@ -283,16 +258,13 @@ class _MapScreenState extends State<MapScreen> {
           ),
         );
       } catch (e) {
-        print('Error fitting bounds: $e');
         _mapController.move(LatLng(Constants.defaultLat, Constants.defaultLon), 7.0);
       }
     });
   }
 
   Color _getMarkerColor(double score) {
-    // Handle invalid scores
     if (score.isNaN || score.isInfinite) return Colors.grey;
-
     if (score < 30) return Colors.red;
     if (score < 60) return Colors.orange;
     if (score < 80) return Colors.blue;
@@ -334,7 +306,6 @@ class _MapScreenState extends State<MapScreen> {
               child: ListView(
                 controller: scrollController,
                 children: [
-                  // Handle bar
                   Center(
                     child: Container(
                       width: 40,
@@ -347,7 +318,6 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Title
                   Text(
                     landmark.title,
                     style: const TextStyle(
@@ -357,8 +327,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Image
-                  if (landmark.image.isNotEmpty)
+                  if (landmark.fullImageUrl.isNotEmpty)
                     Container(
                       height: 180,
                       width: double.infinity,
@@ -411,31 +380,83 @@ class _MapScreenState extends State<MapScreen> {
 
                   const SizedBox(height: 16),
 
-                  // Info rows - with safety check
-                  _buildInfoRow(
-                      Icons.star,
-                      'Score: ${landmark.score.isFinite ? landmark.score.toStringAsFixed(1) : '0.0'}',
-                      _getMarkerColor(landmark.score)
-                  ),
+                  _buildInfoRow(Icons.star, 'Score: ${landmark.score.toStringAsFixed(1)}', _getMarkerColor(landmark.score)),
                   const SizedBox(height: 8),
-                  _buildInfoRow(
-                      Icons.people,
-                      'Total Visits: ${landmark.visitCount}',
-                      Colors.blue
-                  ),
+                  _buildInfoRow(Icons.people, 'Total Visits: ${landmark.visitCount}', Colors.blue),
                   const SizedBox(height: 8),
-                  _buildInfoRow(
-                      Icons.straighten,
-                      'Avg Distance: ${landmark.avgDistance.isFinite ? landmark.avgDistance.toStringAsFixed(0) : '0'}m',
-                      Colors.green
-                  ),
+                  _buildInfoRow(Icons.straighten, 'Avg Distance: ${landmark.avgDistance.toStringAsFixed(0)}m', Colors.green),
+                  const SizedBox(height: 8),
+                  _buildInfoRow(Icons.location_on, 'Lat: ${landmark.lat.toStringAsFixed(4)}, Lon: ${landmark.lon.toStringAsFixed(4)}', Colors.grey),
 
-                  // Visit button
+                  const SizedBox(height: 20),
+
+                  // Visit button with notification
                   ElevatedButton.icon(
-                    onPressed: () {
+                    onPressed: () async {
+                      print('=== MAP VISIT BUTTON PRESSED ===');
+                      final String landmarkTitle = landmark.title;
+                      final provider = context.read<LandmarkProvider>();
+
+                      // Get the scaffold messenger BEFORE closing the bottom sheet
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+                      // Show loading
+                      scaffoldMessenger.showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              ),
+                              const SizedBox(width: 12),
+                              Text('Visiting $landmarkTitle...'),
+                            ],
+                          ),
+                          backgroundColor: Colors.blue,
+                          duration: const Duration(seconds: 10),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      print('Loading SnackBar shown');
+
+                      // Close the bottom sheet
                       Navigator.pop(context);
-                      context.read<LandmarkProvider>().visitLandmark(landmark.id);
+                      print('Bottom sheet closed');
+
+                      // Call visit
+                      await provider.visitLandmark(landmark.id);
+                      print('Visit completed. Provider error: ${provider.error}');
+
+                      // Clear loading
+                      scaffoldMessenger.clearSnackBars();
+                      print('Loading SnackBar cleared');
+
+                      // Show result
+                      String message = provider.error ?? '✅ Visit completed!';
+                      bool isSuccess = message.contains('✅') ||
+                          message.contains('successful') ||
+                          message.contains('📴') ||
+                          message.contains('offline');
+
+                      print('Showing result: $message (success: $isSuccess)');
+
+                      scaffoldMessenger.showSnackBar(
+                        SnackBar(
+                          content: Text(message),
+                          backgroundColor: isSuccess ? Colors.green : Colors.red,
+                          duration: const Duration(seconds: 5),
+                          behavior: SnackBarBehavior.floating,
+                          margin: const EdgeInsets.all(16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      );
+                      print('Result SnackBar shown');
                     },
+
                     icon: const Icon(Icons.directions_walk),
                     label: const Text('Visit This Landmark'),
                     style: ElevatedButton.styleFrom(
@@ -448,7 +469,6 @@ class _MapScreenState extends State<MapScreen> {
 
                   const SizedBox(height: 8),
 
-                  // Close button
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Close'),
