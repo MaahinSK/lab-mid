@@ -141,12 +141,13 @@ class LandmarkProvider extends ChangeNotifier {
       await _dbService.saveVisit(visit);
       _visits.insert(0, visit);
 
-      _error = 'Visit queued for sync';
+      _error = 'Visit queued for sync (offline)';
       notifyListeners();
       return;
     }
 
     _isLoading = true;
+    _error = null;
     notifyListeners();
 
     try {
@@ -157,6 +158,19 @@ class LandmarkProvider extends ChangeNotifier {
       );
 
       if (result['success']) {
+        // Parse the response data
+        final data = result['data'];
+        String message = 'Visit successful!';
+
+        // Try to extract distance from response if available
+        if (data != null && data is Map) {
+          if (data.containsKey('distance')) {
+            message = 'Visit successful! Distance: ${data['distance'].toStringAsFixed(0)}m';
+          } else if (data.containsKey('message')) {
+            message = data['message'];
+          }
+        }
+
         // Save visit locally
         final visit = Visit(
           landmarkId: landmarkId,
@@ -171,12 +185,12 @@ class LandmarkProvider extends ChangeNotifier {
 
         // Refresh landmarks to get updated score
         await fetchLandmarks();
-        _error = null;
+        _error = message; // Use error field to show success message
       } else {
-        _error = result['message'];
+        _error = result['message'] ?? 'Failed to visit landmark';
       }
     } catch (e) {
-      _error = e.toString();
+      _error = 'Error: ${e.toString()}';
     } finally {
       _isLoading = false;
       notifyListeners();

@@ -137,6 +137,52 @@ class ApiService {
     }
   }
 
+
+
+  // Add this method to get deleted landmarks
+  Future<List<Landmark>> getDeletedLandmarks() async {
+    try {
+      final response = await _dio.get('', queryParameters: {
+        'action': 'get_landmarks',
+        'key': Constants.apiKey,
+        'include_deleted': '1', // Try this - might work
+      });
+
+      if (response.statusCode == 200) {
+        List<dynamic> data = response.data;
+        return data.map((json) => Landmark.fromJson(json))
+            .where((landmark) => landmark.isDeleted)
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching deleted landmarks: $e');
+      return [];
+    }
+  }
+
+// Add restore method
+  Future<bool> restoreLandmark(int id) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'id': id.toString(),
+      });
+
+      final response = await _dio.post(
+        '',
+        queryParameters: {
+          'action': 'restore_landmark',
+          'key': Constants.apiKey,
+        },
+        data: formData,
+      );
+
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      throw Exception('Network error: ${e.message}');
+    }
+  }
+
   // Delete landmark (soft delete)
   Future<bool> deleteLandmark(int id) async {
     try {

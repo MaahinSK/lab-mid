@@ -105,6 +105,8 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
 
+              // In the Stack, replace the error display with this:
+
               if (provider.error != null)
                 Positioned(
                   bottom: 16,
@@ -113,12 +115,23 @@ class _MapScreenState extends State<MapScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      // Show green for success messages, red for errors
+                      color: provider.error!.contains('successful') ||
+                          provider.error!.contains('queued')
+                          ? Colors.green
+                          : Colors.red,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.error_outline, color: Colors.white, size: 16),
+                        Icon(
+                          provider.error!.contains('successful') ||
+                              provider.error!.contains('queued')
+                              ? Icons.check_circle
+                              : Icons.error_outline,
+                          color: Colors.white,
+                          size: 16,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
